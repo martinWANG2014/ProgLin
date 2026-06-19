@@ -1,11 +1,11 @@
-# LinPro
+# LinProg
 
 Linear Programming Solver and Sensitivity Analysis Toolkit.
 
 ## Installation
 
 ```bash
-pip install linpro
+pip install linprog
 ```
 
 ## Example
@@ -22,7 +22,7 @@ pip install linpro
     # ============================================================
 
 ```python
-from main import LinearProgram
+from linprog import LinearProgram
 
 lp = LinearProgram(
     c=[3,5],
