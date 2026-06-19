@@ -302,6 +302,20 @@ class LinearProgram:
 
         return self.res
 
+    def solution(self):
+        if self.res is None:
+            self.solve()
+
+        x = np.asarray(self.res.x).copy()
+        x[np.abs(x) <= 1e-6] = 0.0
+
+        sol = {
+            v: float(val)
+            for v, val in zip(self.var_names, x)
+        }
+        sol["obj"] = self.objective_value
+        return sol
+
     def reportSolution(self):
         if self.res is None:
             self.solve()
@@ -640,3 +654,5 @@ if __name__ == '__main__':
     print(lp.reportSolution())
     # display the sensitivity analysis
     print(lp.report_sensitive_analysis())
+
+    print(lp.solution())
