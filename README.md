@@ -47,6 +47,8 @@ print(lp.reportModel())
 print(lp.reportStandardModelFormat())
 # display the linear program in matrix form
 print(lp.reportMatrixFormat())
+# solution of the linear program
+print(lp.solution)
 # display the solution
 print(lp.reportSolution())
 # display the sensitivity analysis
