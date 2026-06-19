@@ -41,5 +41,14 @@ lp = LinearProgram(
 )
 
 lp.solve()
-lp.report_sensitive_analysis()
+# display the linear program model
+print(lp.reportModel())
+# display the linear program in standard form
+print(lp.reportStandardModelFormat())
+# display the linear program in matrix form
+print(lp.reportMatrixFormat())
+# display the solution
+print(lp.reportSolution())
+# display the sensitivity analysis
+print(lp.report_sensitive_analysis())
 ```
