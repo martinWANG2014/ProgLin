@@ -22,7 +22,7 @@ pip install linpro
     # ============================================================
 
 ```python
-from linpro import LinearProgram
+from main import LinearProgram
 
 lp = LinearProgram(
     c=[3,5],
