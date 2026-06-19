@@ -326,13 +326,13 @@ class LinearProgram:
         lines.append(solution_table.to_string(index=False))
         lines.append("-" * 80)
         report = "\n".join(lines)
-
-        return {
-            "objective_type": self.objective,
-            "objective_value": self.objective_value,
-            "solution_table": solution_table,
-            "report_text": report
-        }
+        return report
+        # return {
+        #     "objective_type": self.objective,
+        #     "objective_value": self.objective_value,
+        #     "solution_table": solution_table,
+        #     "report_text": report
+        # }
 
     # ------------------------------------------------------------
     # Sensitivity analysis
@@ -549,9 +549,9 @@ class LinearProgram:
         })
 
         report_text = "\n\n".join([
-            self.reportModel(),
-            self.reportStandardModelFormat(),
-            self.reportMatrixFormat(),
+            # self.reportModel(),
+            # self.reportStandardModelFormat(),
+            # self.reportMatrixFormat(),
             "OPTIMAL SOLUTION\n" + "=" * 80 + "\n"
             + f"Objective value = {true_obj:.6f}\n\n"
             + solution_table.to_string(index=False)+ "\n"+"-" * 80,
@@ -560,34 +560,36 @@ class LinearProgram:
             "OBJECTIVE COEFFICIENT SENSITIVITY\n" + "=" * 80 + "\n"
             + obj_sensitivity.to_string(index=False)+ "\n"+"-" * 80,
             "RHS SENSITIVITY\n" + "=" * 80 + "\n"
-            + rhs_sensitivity.to_string(index=False)+ "\n"+"-" * 80,
-            "FINAL BASIS\n" + "=" * 80 + "\n"
-            + basis_table.to_string(index=False)+ "\n"+"-" * 80
+            + rhs_sensitivity.to_string(index=False)+ "\n"+"-" * 80
+            # ,
+            # "FINAL BASIS\n" + "=" * 80 + "\n"
+            # + basis_table.to_string(index=False)+ "\n"+"-" * 80
         ])
+        return report_text
 
-        print(report_text)
-
-        return {
-            "result": self.res,
-            "objective_value": true_obj,
-
-            "lp_format": self.reportModel(),
-            "standard_lp_format": self.reportStandardModelFormat(),
-            "matrix_format": self.reportMatrixFormat(),
-
-            "solution": solution_table,
-            "constraints": constraint_table,
-            "obj_sensitivity": obj_sensitivity,
-            "rhs_sensitivity": rhs_sensitivity,
-            "basis": basis_table,
-
-            "A_standard": Astd,
-            "b_standard": b_std,
-            "c_standard": cstd,
-            "standard_variable_names": std_names,
-
-            "report_text": report_text
-        }
+        # print(report_text)
+        #
+        # return {
+        #     "result": self.res,
+        #     "objective_value": true_obj,
+        #
+        #     "lp_format": self.reportModel(),
+        #     "standard_lp_format": self.reportStandardModelFormat(),
+        #     "matrix_format": self.reportMatrixFormat(),
+        #
+        #     "solution": solution_table,
+        #     "constraints": constraint_table,
+        #     "obj_sensitivity": obj_sensitivity,
+        #     "rhs_sensitivity": rhs_sensitivity,
+        #     "basis": basis_table,
+        #
+        #     "A_standard": Astd,
+        #     "b_standard": b_std,
+        #     "c_standard": cstd,
+        #     "standard_variable_names": std_names,
+        #
+        #     "report_text": report_text
+        # }
 
 if __name__ == '__main__':
     # ============================================================
@@ -628,4 +630,13 @@ if __name__ == '__main__':
         con_names=["cte1", "cte3", "cte3", "cte4"]
     )
     lp.solve()
-    lp.report_sensitive_analysis()
+    # display the linear program model
+    print(lp.reportModel())
+    # display the linear program in standard form
+    print(lp.reportStandardModelFormat())
+    # display the linear program in matrix form
+    print(lp.reportMatrixFormat())
+    # display the solution
+    print(lp.reportSolution())
+    # display the sensitivity analysis
+    print(lp.report_sensitive_analysis())
