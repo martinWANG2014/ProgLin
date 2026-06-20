@@ -1,3 +1,3 @@
-from main import LinearProgram
+from linprog import LinearProgram
 
 __all__ = ["LinearProgram"]

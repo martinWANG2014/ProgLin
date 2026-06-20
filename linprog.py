@@ -15,7 +15,8 @@ class LinearProgram:
         objective="max",
         bounds=None,
         var_names=None,
-        con_names=None
+        con_names=None,
+        var_types=None
     ):
         self.c = np.array(c, dtype=float)
         self.A = np.array(A, dtype=float)
@@ -26,8 +27,10 @@ class LinearProgram:
         self.m, self.n = self.A.shape
 
         self.var_names = var_names or [f"x{j+1}" for j in range(self.n)]
-        self.con_names = con_names or [f"Constraint {i+1}" for i in range(self.m)]
+        self.con_names = con_names or [f"Cte{i+1}" for i in range(self.m)]
         self.bounds = bounds or [(0, None)] * self.n
+
+        self.integrality = var_types or [0]* self.n
 
         self.res = None
         self.objective_value = None
@@ -68,13 +71,55 @@ class LinearProgram:
         inc = np.inf if np.isposinf(high) else high - current
         return dec, inc
 
+    def _get_tyep_vars(self):
+        binary_vars = []
+        general_vars = []
+        semi_cont_vars = []
+        semi_int_vars = []
+
+        for i, var in enumerate(self.var_names):
+            vtype = self.integrality[i]
+
+            if vtype == 1:
+                if self.bounds[i][0] is None and self.bounds[i][1] is None and self.bounds[i][0] == 0 and self.bounds[i][1] == 1:
+                    binary_vars.append(var)
+                else:
+                    general_vars.append(var)
+            elif vtype == 2:
+                semi_cont_vars.append(var)
+            elif vtype == 3:
+                semi_int_vars.append(var)
+
+        lines = []
+
+        if binary_vars:
+            lines.append("Binary")
+            lines.extend(f" {v}" for v in binary_vars)
+            lines.append("")
+
+        if general_vars:
+            lines.append("General Integer")
+            lines.extend(f" {v}" for v in general_vars)
+            lines.append("")
+
+        if semi_cont_vars:
+            lines.append("Semi-Continuous")
+            lines.extend(f" {v}" for v in semi_cont_vars)
+            lines.append("")
+
+        if semi_int_vars:
+            lines.append("Semi-Integer")
+            lines.extend(f" {v}" for v in semi_int_vars)
+            lines.append("")
+
+        return "\n".join(lines)
     # ------------------------------------------------------------
     # Model reports
     # ------------------------------------------------------------
 
     def reportModel(self):
         lines = []
-        lines.append("ORIGINAL LP MODEL")
+        lines.append("ORIGINAL LP/MILP MODEL")
         lines.append("=" * 80)
 
         obj = self.linear_expr(self.c, self.var_names)
@@ -92,11 +137,20 @@ class LinearProgram:
         lines.append("Bounds:")
         for name, bound in zip(self.var_names, self.bounds):
             lb, ub = bound
-            if lb is not None:
-                lines.append(f"  {name} >= {lb:g}")
-            if ub is not None:
-                lines.append(f"  {name} <= {ub:g}")
+            if lb is None and ub is None:
+                lines.append(f" {name} free")
 
+            elif ub is None:
+                lines.append(f" {lb:g} <= {name}")
+
+            elif lb is None:
+                lines.append(f" {name} <= {ub:g}")
+
+            else:
+                lines.append(
+                    f" {lb:g} <= {name} <= {ub:g}"
+                )
+        lines.append(self._get_tyep_vars())
         lines.append("-" * 80)
         return "\n".join(lines)
 
@@ -147,7 +201,7 @@ class LinearProgram:
         return Astd, b_std, cstd, std_names, slack_names
 
     def reportStandardModelFormat(self):
-        Astd, b_std, cstd, std_names, _ = self._build_standard_form()
+        Astd, b_std, cstd, std_names, slack_names = self._build_standard_form()
 
         lines = []
         lines.append("STANDARD LP FORMAT")
@@ -163,7 +217,26 @@ class LinearProgram:
             lines.append(f"  {lhs} = {rhs:g}")
 
         lines.append("")
-        lines.append("All variables >= 0")
+        lines.append("Bounds:")
+        for name, bound in zip(self.var_names, self.bounds):
+            lb, ub = bound
+            if lb is None and ub is None:
+                lines.append(f" {name} free")
+
+            elif ub is None:
+                lines.append(f" {lb:g} <= {name}")
+
+            elif lb is None:
+                lines.append(f" {name} <= {ub:g}")
+
+            else:
+                lines.append(
+                    f" {lb:g} <= {name} <= {ub:g}"
+                )
+        for name in slack_names:
+            lines.append(f" 0 <= {name}")
+        lines.append(self._get_tyep_vars())
+
         lines.append("-" * 80)
         return "\n".join(lines)
 
@@ -253,6 +326,25 @@ class LinearProgram:
         c_str = " ".join(f"{v:g}" for v in cstd)
 
         lines.append(f"cᵀ = [ {c_str} ]")
+
+        lines.append("Bounds:")
+        for name, bound in zip(self.var_names, self.bounds):
+            lb, ub = bound
+            if lb is None and ub is None:
+                lines.append(f" {name} free")
+
+            elif ub is None:
+                lines.append(f" {lb:g} <= {name}")
+
+            elif lb is None:
+                lines.append(f" {name} <= {ub:g}")
+
+            else:
+                lines.append(
+                    f" {lb:g} <= {name} <= {ub:g}"
+                )
+        lines.append(self._get_tyep_vars())
+
         lines.append("-" * 80)
 
         return "\n".join(lines)
@@ -292,7 +384,8 @@ class LinearProgram:
             A_eq=np.array(A_eq) if A_eq else None,
             b_eq=np.array(b_eq) if b_eq else None,
             bounds=self.bounds,
-            method="highs-ds"
+            method="highs",
+            integrality=self.integrality if self.integrality else None,
         )
 
         if not self.res.success:
@@ -301,6 +394,20 @@ class LinearProgram:
         self.objective_value = float(self.c @ self.res.x)
 
         return self.res
+
+    def solution(self):
+        if self.res is None:
+            self.solve()
+
+        x = np.asarray(self.res.x).copy()
+        x[np.abs(x) <= 1e-6] = 0.0
+
+        sol = {
+            v: float(val)
+            for v, val in zip(self.var_names, x)
+        }
+        sol["obj"] = self.objective_value
+        return sol
 
     def reportSolution(self):
         if self.res is None:
@@ -326,19 +433,22 @@ class LinearProgram:
         lines.append(solution_table.to_string(index=False))
         lines.append("-" * 80)
         report = "\n".join(lines)
-
-        return {
-            "objective_type": self.objective,
-            "objective_value": self.objective_value,
-            "solution_table": solution_table,
-            "report_text": report
-        }
+        return report
+        # return {
+        #     "objective_type": self.objective,
+        #     "objective_value": self.objective_value,
+        #     "solution_table": solution_table,
+        #     "report_text": report
+        # }
 
     # ------------------------------------------------------------
     # Sensitivity analysis
     # ------------------------------------------------------------
 
     def report_sensitive_analysis(self):
+        if any(self.integrality)>0:
+            return "Fatal error: Sensitivity analysis not supported for integer variables"
+
         if self.res is None:
             self.solve()
 
@@ -549,9 +659,9 @@ class LinearProgram:
         })
 
         report_text = "\n\n".join([
-            self.reportModel(),
-            self.reportStandardModelFormat(),
-            self.reportMatrixFormat(),
+            # self.reportModel(),
+            # self.reportStandardModelFormat(),
+            # self.reportMatrixFormat(),
             "OPTIMAL SOLUTION\n" + "=" * 80 + "\n"
             + f"Objective value = {true_obj:.6f}\n\n"
             + solution_table.to_string(index=False)+ "\n"+"-" * 80,
@@ -560,34 +670,36 @@ class LinearProgram:
             "OBJECTIVE COEFFICIENT SENSITIVITY\n" + "=" * 80 + "\n"
             + obj_sensitivity.to_string(index=False)+ "\n"+"-" * 80,
             "RHS SENSITIVITY\n" + "=" * 80 + "\n"
-            + rhs_sensitivity.to_string(index=False)+ "\n"+"-" * 80,
-            "FINAL BASIS\n" + "=" * 80 + "\n"
-            + basis_table.to_string(index=False)+ "\n"+"-" * 80
+            + rhs_sensitivity.to_string(index=False)+ "\n"+"-" * 80
+            # ,
+            # "FINAL BASIS\n" + "=" * 80 + "\n"
+            # + basis_table.to_string(index=False)+ "\n"+"-" * 80
         ])
+        return report_text
 
-        print(report_text)
-
-        return {
-            "result": self.res,
-            "objective_value": true_obj,
-
-            "lp_format": self.reportModel(),
-            "standard_lp_format": self.reportStandardModelFormat(),
-            "matrix_format": self.reportMatrixFormat(),
-
-            "solution": solution_table,
-            "constraints": constraint_table,
-            "obj_sensitivity": obj_sensitivity,
-            "rhs_sensitivity": rhs_sensitivity,
-            "basis": basis_table,
-
-            "A_standard": Astd,
-            "b_standard": b_std,
-            "c_standard": cstd,
-            "standard_variable_names": std_names,
-
-            "report_text": report_text
-        }
+        # print(report_text)
+        #
+        # return {
+        #     "result": self.res,
+        #     "objective_value": true_obj,
+        #
+        #     "lp_format": self.reportModel(),
+        #     "standard_lp_format": self.reportStandardModelFormat(),
+        #     "matrix_format": self.reportMatrixFormat(),
+        #
+        #     "solution": solution_table,
+        #     "constraints": constraint_table,
+        #     "obj_sensitivity": obj_sensitivity,
+        #     "rhs_sensitivity": rhs_sensitivity,
+        #     "basis": basis_table,
+        #
+        #     "A_standard": Astd,
+        #     "b_standard": b_std,
+        #     "c_standard": cstd,
+        #     "standard_variable_names": std_names,
+        #
+        #     "report_text": report_text
+        # }
 
 if __name__ == '__main__':
     # ============================================================
@@ -602,8 +714,20 @@ if __name__ == '__main__':
     # x1, x2 >= 0
     # ============================================================
 
+    # name of decision variables
+    var_names = ["x1", "x2"]
+
+    # objective sense
+    objective_sense = "max" # "max" or "min"
+
+    # coefficients of the objective function
     c = [3, 5]
 
+    # name of constraints
+    con_names = ["cte1", "cte3", "cte3", "cte4"]
+
+    # Matrix: each line represents the coefficients of a linear expression
+    # in the left part of a constraint
     A = [
         [1, 0],
         [0, 2],
@@ -611,21 +735,42 @@ if __name__ == '__main__':
         [1, 1]
     ]
 
+    # sense of each constraint: "<=", ">=", or "=="
     senses = ["<=", ">=", "<=", "=="]
 
+    # right hand side of each constraint
     b = [4, 8, 18, 7]
 
-    bounds = [(0, None), (0, None)]
+    # bounds on each variable: (min, max) or (min, None) or (None, max) or (None, None)
+    bounds = [(0, 7), (0, None)]
+
+    # type of each variable: 0 for continuous, 1 for integer
+    # A binary variable is handled as an integer variable bounded by 0 and 1.
+    var_types = [0]*2
 
     lp = LinearProgram(
         c=c,
         A=A,
         senses=senses,
         b=b,
-        objective="max",
+        objective=objective_sense,
         bounds=bounds,
-        var_names=["x1", "x2"],
-        con_names=["cte1", "cte3", "cte3", "cte4"]
+        var_names=var_names,
+        con_names=con_names,
+        var_types=var_types
     )
+
+    # solve the linear program
     lp.solve()
-    lp.report_sensitive_analysis()
+    # display the linear program model
+    print(lp.reportModel())
+    # display the solution
+    print(lp.solution())
+    # display the linear program in standard form
+    print(lp.reportStandardModelFormat())
+    # display the linear program in matrix form
+    print(lp.reportMatrixFormat())
+    # display the solution
+    print(lp.reportSolution())
+    # display the sensitivity analysis
+    print(lp.report_sensitive_analysis())
